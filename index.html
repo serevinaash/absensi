@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Absensi Digital - PELITA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Poppins', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-shadow { box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .btn-primary { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); }
+        .btn-success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .saved-indicator { animation: fadeInOut 3s ease-in-out; }
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; transform: translateY(-10px); }
+            20%, 80% { opacity: 1; transform: translateY(0); }
+        }
+        .print-only { display: none; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; }
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <span class="text-white font-bold text-xl">P</span>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-800">SEKOLAH PELITA</h1>
+                        <p class="text-gray-600">Sistem Absensi Digital</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-lg font-semibold text-gray-800">Yuliana S.Pd</p>
+                    <p class="text-gray-600">Wali Kelas 3 Love</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="container mx-auto px-4 py-4">
+        <div class="bg-white rounded-lg shadow-lg p-4">
+            <div class="flex space-x-4">
+                <button onclick="showPage('absensi')" id="btn-absensi" class="px-6 py-2 rounded-lg font-semibold btn-primary text-white">
+                    📝 Absensi Harian
+                </button>
+                <button onclick="showPage('rekap')" id="btn-rekap" class="px-6 py-2 rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300">
+                    📊 Rekap Kehadiran
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Indicator -->
+    <div id="savedIndicator" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg saved-indicator hidden z-50">
+        ✅ Absensi berhasil disimpan!
+    </div>
+
+    <!-- Page 1: Absensi Harian -->
+    <div id="page-absensi" class="container mx-auto px-4 pb-8">
+        <!-- Date and Controls -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <label class="text-lg font-semibold text-gray-700">Tanggal:</label>
+                    <button onclick="changeDate(-1)" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg">◀</button>
+                    <input type="date" id="attendanceDate" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <button onclick="changeDate(1)" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg">▶</button>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="markAllPresent()" class="px-6 py-2 btn-success text-white rounded-lg font-semibold hover:opacity-90">
+                        ✅ Hadir Semua
+                    </button>
+                    <button onclick="saveAttendance()" class="px-6 py-2 btn-primary text-white rounded-lg font-semibold hover:opacity-90">
+                        💾 Simpan Absensi
+                    </button>
+                    <button onclick="exportToExcel()" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold">
+                        📊 Export Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Student Form -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">➕ Tambah Siswa Baru</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="newNISN" placeholder="NISN (opsional)" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="newName" placeholder="Nama Lengkap" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                <button onclick="addStudent()" class="px-6 py-2 btn-success text-white rounded-lg font-semibold hover:opacity-90">
+                    ➕ Tambah Siswa
+                </button>
+            </div>
+        </div>
+
+        <!-- Students Table -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden card-shadow">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800">📋 Daftar Kehadiran Siswa</h2>
+                <p class="text-gray-600 mt-1">Kelas 3 Love - <span id="currentDateDisplay"></span></p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">No</th>
+                            <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">NISN</th>
+                            <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Nama Siswa</th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold text-gray-700">Hadir</th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold text-gray-700">Izin</th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold text-gray-700">Sakit</th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold text-gray-700">Absen</th>
+                            <th class="px-6 py-4 text-left text-sm font-semibold text-gray-700">Keterangan</th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold text-gray-700">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="studentsTableBody" class="divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page 2: Rekap Kehadiran -->
+    <div id="page-rekap" class="container mx-auto px-4 pb-8 hidden">
+        <!-- Rekap Controls -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-4">
+                    <label class="text-lg font-semibold text-gray-700">Pilih Bulan:</label>
+                    <select id="rekapMonth" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <option value="0">Januari</option>
+                        <option value="1">Februari</option>
+                        <option value="2">Maret</option>
+                        <option value="3">April</option>
+                        <option value="4">Mei</option>
+                        <option value="5">Juni</option>
+                        <option value="6">Juli</option>
+                        <option value="7">Agustus</option>
+                        <option value="8">September</option>
+                        <option value="9">Oktober</option>
+                        <option value="10">November</option>
+                        <option value="11">Desember</option>
+                    </select>
+                    <select id="rekapYear" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    </select>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="generateRekap()" class="px-6 py-2 btn-primary text-white rounded-lg font-semibold hover:opacity-90">
+                        📊 Generate Rekap
+                    </button>
+                    <button onclick="printRekap()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold">
+                        🖨️ Cetak Rekap
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rekap Harian -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-6 card-shadow">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📅 Rekap Harian</h3>
+            <div id="rekapHarian" class="overflow-x-auto">
+                <p class="text-gray-500 text-center py-8">Pilih bulan dan tahun, lalu klik "Generate Rekap" untuk melihat data</p>
+            </div>
+        </div>
+
+        <!-- Rekap Bulanan -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">📊 Rekap Bulanan</h3>
+            <div id="rekapBulanan" class="overflow-x-auto">
+                <p class="text-gray-500 text-center py-8">Pilih bulan dan tahun, lalu klik "Generate Rekap" untuk melihat data</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data siswa awal
+        let students = [
+            { nisn: "", name: "AFRIANA BONG" },
+            { nisn: "", name: "AFRIANI BONG" },
+            { nisn: "3165046210", name: "AI LEEN NATHALYA" },
+            { nisn: "3171157222", name: "ALDEVARO" },
+            { nisn: "3165221958", name: "BELLYCIA CORNESYA" },
+            { nisn: "3174864827", name: "BRILEY ELSON" },
+            { nisn: "3171781283", name: "BRYAN FERNANDY" },
+            { nisn: "3175882682", name: "CALESTA CHERYL" },
+            { nisn: "3179617239", name: "CELLINE FILLBERTA" },
+            { nisn: "3172258943", name: "DANIEL EZRA WIJAYA" },
+            { nisn: "3170387236", name: "ELVIRA CHANTIKA CHANDRA" },
+            { nisn: "3167797529", name: "FELICIA THEN" },
+            { nisn: "3176492993", name: "FELIX XANDER BONG" },
+            { nisn: "3165364551", name: "GUENNY AYLLEN" },
+            { nisn: "3174485820", name: "HERIVARO CHUADIPTA" },
+            { nisn: "3174964606", name: "IVANDER VATTERLOW" },
+            { nisn: "3171920325", name: "JASON LIONEL LIM" },
+            { nisn: "3173026089", name: "KATHRYN GRIFENGTIE" },
+            { nisn: "3172093839", name: "KELLIE JANEVA RAMONA" },
+            { nisn: "3178714185", name: "KENZO IMMANUEL" },
+            { nisn: "3170055751", name: "KENZOU WILBERT XAVIERO" },
+            { nisn: "3161740940", name: "KIMORA FIORENZA" },
+            { nisn: "3161311045", name: "LEONATHAN EVAN WIJAYA" },
+            { nisn: "3175466990", name: "LIONNEL ALEXANDER CHIN" },
+            { nisn: "3169008603", name: "MANUEL MATTHEW CRISTIANO" },
+            { nisn: "3178218621", name: "MARCELLUS FAREL TRI PURNOMO" },
+            { nisn: "3174411238", name: "MARQUEZ CHRISTIAN" },
+            { nisn: "3176377218", name: "MICHELE KENNESYA" },
+            { nisn: "3175744285", name: "NEVAN VERDYANTO" },
+            { nisn: "3171729227", name: "NICOLE LOUISE KIUNG" },
+            { nisn: "3161625450", name: "QUEENY DAVLYNNIE WINOTO" },
+            { nisn: "", name: "RAELEEN SHEENA KEIKO" },
+            { nisn: "3174627623", name: "RICSON APRILIO DEFFANDI" },
+            { nisn: "3170429779", name: "TANIA ANGELA KHOUW" },
+            { nisn: "3165371600", name: "THEN QUEENZY SELENA" },
+            { nisn: "3160285033", name: "VALENCIA CAROLINE" },
+            { nisn: "3168305334", name: "VINCENT ARDION" },
+            { nisn: "3177209513", name: "VIOLINE ICARY KAM WIJAYA" },
+            { nisn: "3172304246", name: "WILSON FERNANDO" },
+            { nisn: "3163514535", name: "WYLCENT GABRIEL" }
+        ];
+
+        // Data kehadiran (localStorage)
+        let attendanceData = JSON.parse(localStorage.getItem('attendanceData')) || {};
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePage();
+        });
+
+        function initializePage() {
+            // Set tanggal hari ini
+            const today = new Date();
+            document.getElementById('attendanceDate').value = today.toISOString().split('T')[0];
+            updateCurrentDateDisplay();
+            
+            // Initialize year options
+            const yearSelect = document.getElementById('rekapYear');
+            const currentYear = new Date().getFullYear();
+            for (let year = currentYear - 2; year <= currentYear + 1; year++) {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (year === currentYear) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+            
+            // Set current month
+            document.getElementById('rekapMonth').value = today.getMonth();
+            
+            renderStudentsTable();
+            loadTodayAttendance();
+        }
+
+        function showPage(page) {
+            // Hide all pages
+            document.getElementById('page-absensi').classList.add('hidden');
+            document.getElementById('page-rekap').classList.add('hidden');
+            
+            // Show selected page
+            document.getElementById('page-' + page).classList.remove('hidden');
+            
+            // Update navigation buttons
+            document.getElementById('btn-absensi').className = page === 'absensi' 
+                ? 'px-6 py-2 rounded-lg font-semibold btn-primary text-white'
+                : 'px-6 py-2 rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300';
+            
+            document.getElementById('btn-rekap').className = page === 'rekap' 
+                ? 'px-6 py-2 rounded-lg font-semibold btn-primary text-white'
+                : 'px-6 py-2 rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300';
+        }
+
+        function changeDate(days) {
+            const dateInput = document.getElementById('attendanceDate');
+            const currentDate = new Date(dateInput.value);
+            currentDate.setDate(currentDate.getDate() + days);
+            dateInput.value = currentDate.toISOString().split('T')[0];
+            updateCurrentDateDisplay();
+            loadTodayAttendance();
+        }
+
+        function updateCurrentDateDisplay() {
+            const date = new Date(document.getElementById('attendanceDate').value);
+            const options = { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            };
+            document.getElementById('currentDateDisplay').textContent = 
+                date.toLocaleDateString('id-ID', options);
+        }
+
+        function renderStudentsTable() {
+            const tbody = document.getElementById('studentsTableBody');
+            tbody.innerHTML = '';
+            
+            students.forEach((student, index) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 text-sm text-gray-900">${index + 1}</td>
+                    <td class="px-6 py-4 text-sm text-gray-900">${student.nisn || '-'}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-gray-900">${student.name}</td>
+                    <td class="px-6 py-4 text-center">
+                        <input type="radio" name="attendance_${index}" value="hadir" class="w-4 h-4 text-green-600">
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <input type="radio" name="attendance_${index}" value="izin" class="w-4 h-4 text-yellow-600">
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <input type="radio" name="attendance_${index}" value="sakit" class="w-4 h-4 text-blue-600">
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <input type="radio" name="attendance_${index}" value="absen" class="w-4 h-4 text-red-600">
+                    </td>
+                    <td class="px-6 py-4">
+                        <input type="text" id="keterangan_${index}" placeholder="Keterangan..." 
+                               class="w-full px-3 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="deleteStudent(${index})" 
+                                class="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs rounded font-semibold">
+                            🗑️ Hapus
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function addStudent() {
+            const nisn = document.getElementById('newNISN').value.trim();
+            const name = document.getElementById('newName').value.trim();
+            
+            if (!name) {
+                alert('Nama siswa harus diisi!');
+                return;
+            }
+            
+            students.push({ nisn, name });
+            document.getElementById('newNISN').value = '';
+            document.getElementById('newName').value = '';
+            renderStudentsTable();
+            loadTodayAttendance();
+        }
+
+        function deleteStudent(index) {
+            if (confirm(`Apakah Anda yakin ingin menghapus siswa "${students[index].name}"?`)) {
+                students.splice(index, 1);
+                renderStudentsTable();
+                loadTodayAttendance();
+            }
+        }
+
+        function markAllPresent() {
+            students.forEach((student, index) => {
+                const radio = document.querySelector(`input[name="attendance_${index}"][value="hadir"]`);
+                if (radio) radio.checked = true;
+            });
+        }
+
+        function saveAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            const attendanceRecord = {};
+            
+            students.forEach((student, index) => {
+                const selectedStatus = document.querySelector(`input[name="attendance_${index}"]:checked`);
+                const keterangan = document.getElementById(`keterangan_${index}`).value;
+                
+                attendanceRecord[student.name] = {
+                    status: selectedStatus ? selectedStatus.value : 'absen',
+                    keterangan: keterangan,
+                    nisn: student.nisn
+                };
+            });
+            
+            if (!attendanceData[date]) {
+                attendanceData[date] = {};
+            }
+            attendanceData[date] = attendanceRecord;
+            
+            localStorage.setItem('attendanceData', JSON.stringify(attendanceData));
+            showSavedIndicator();
+        }
+
+        function loadTodayAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            const todayData = attendanceData[date] || {};
+            
+            students.forEach((student, index) => {
+                const studentData = todayData[student.name];
+                if (studentData) {
+                    const radio = document.querySelector(`input[name="attendance_${index}"][value="${studentData.status}"]`);
+                    if (radio) radio.checked = true;
+                    
+                    const keteranganInput = document.getElementById(`keterangan_${index}`);
+                    if (keteranganInput) keteranganInput.value = studentData.keterangan || '';
+                }
+            });
+        }
+
+        function showSavedIndicator() {
+            const indicator = document.getElementById('savedIndicator');
+            indicator.classList.remove('hidden');
+            setTimeout(() => {
+                indicator.classList.add('hidden');
+            }, 3000);
+        }
+
+        function generateRekap() {
+            const month = parseInt(document.getElementById('rekapMonth').value);
+            const year = parseInt(document.getElementById('rekapYear').value);
+            
+            generateRekapHarian(month, year);
+            generateRekapBulanan(month, year);
+        }
+
+        function generateRekapHarian(month, year) {
+            const rekapHarianDiv = document.getElementById('rekapHarian');
+            
+            // Get all dates in the month that have attendance data
+            const datesInMonth = Object.keys(attendanceData).filter(date => {
+                const d = new Date(date);
+                return d.getMonth() === month && d.getFullYear() === year;
+            }).sort();
+            
+            if (datesInMonth.length === 0) {
+                rekapHarianDiv.innerHTML = '<p class="text-gray-500 text-center py-8">Tidak ada data absensi untuk bulan ini</p>';
+                return;
+            }
+            
+            let html = '<table class="w-full border border-gray-300"><thead class="bg-gray-100"><tr>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-left">Tanggal</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Hadir</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Izin</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Sakit</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Absen</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Total</th>';
+            html += '</tr></thead><tbody>';
+            
+            datesInMonth.forEach(date => {
+                const data = attendanceData[date];
+                const counts = { hadir: 0, izin: 0, sakit: 0, absen: 0 };
+                
+                Object.values(data).forEach(record => {
+                    counts[record.status] = (counts[record.status] || 0) + 1;
+                });
+                
+                const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+                const dateObj = new Date(date);
+                const formattedDate = dateObj.toLocaleDateString('id-ID');
+                
+                html += `<tr>
+                    <td class="border border-gray-300 px-4 py-2">${formattedDate}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-green-600 font-semibold">${counts.hadir}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-yellow-600 font-semibold">${counts.izin}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-blue-600 font-semibold">${counts.sakit}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-red-600 font-semibold">${counts.absen}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center font-bold">${total}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            rekapHarianDiv.innerHTML = html;
+        }
+
+        function generateRekapBulanan(month, year) {
+            const rekapBulananDiv = document.getElementById('rekapBulanan');
+            
+            // Calculate monthly summary for each student
+            const studentSummary = {};
+            
+            students.forEach(student => {
+                studentSummary[student.name] = {
+                    nisn: student.nisn,
+                    hadir: 0,
+                    izin: 0,
+                    sakit: 0,
+                    absen: 0
+                };
+            });
+            
+            // Count attendance for each student
+            Object.keys(attendanceData).forEach(date => {
+                const d = new Date(date);
+                if (d.getMonth() === month && d.getFullYear() === year) {
+                    const dayData = attendanceData[date];
+                    Object.keys(dayData).forEach(studentName => {
+                        if (studentSummary[studentName]) {
+                            const status = dayData[studentName].status;
+                            studentSummary[studentName][status]++;
+                        }
+                    });
+                }
+            });
+            
+            let html = '<table class="w-full border border-gray-300"><thead class="bg-gray-100"><tr>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-left">No</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-left">NISN</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-left">Nama Siswa</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Hadir</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Izin</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Sakit</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Absen</th>';
+            html += '<th class="border border-gray-300 px-4 py-2 text-center">Persentase Hadir</th>';
+            html += '</tr></thead><tbody>';
+            
+            students.forEach((student, index) => {
+                const summary = studentSummary[student.name];
+                const total = summary.hadir + summary.izin + summary.sakit + summary.absen;
+                const percentage = total > 0 ? ((summary.hadir / total) * 100).toFixed(1) : '0.0';
+                
+                html += `<tr>
+                    <td class="border border-gray-300 px-4 py-2">${index + 1}</td>
+                    <td class="border border-gray-300 px-4 py-2">${student.nisn || '-'}</td>
+                    <td class="border border-gray-300 px-4 py-2 font-medium">${student.name}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-green-600 font-semibold">${summary.hadir}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-yellow-600 font-semibold">${summary.izin}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-blue-600 font-semibold">${summary.sakit}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center text-red-600 font-semibold">${summary.absen}</td>
+                    <td class="border border-gray-300 px-4 py-2 text-center font-bold">${percentage}%</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            rekapBulananDiv.innerHTML = html;
+        }
+
+        function printRekap() {
+            window.print();
+        }
+
+        function exportToExcel() {
+            const date = document.getElementById('attendanceDate').value;
+            const todayData = attendanceData[date] || {};
+            
+            const excelData = [];
+            excelData.push(['No', 'NISN', 'Nama Siswa', 'Status', 'Keterangan']);
+            
+            students.forEach((student, index) => {
+                const studentData = todayData[student.name] || { status: 'absen', keterangan: '' };
+                excelData.push([
+                    index + 1,
+                    student.nisn || '-',
+                    student.name,
+                    studentData.status.toUpperCase(),
+                    studentData.keterangan
+                ]);
+            });
+            
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Absensi');
+            
+            const fileName = `Absensi_${date}_Kelas3Love.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        // Event listeners
+        document.getElementById('attendanceDate').addEventListener('change', function() {
+            updateCurrentDateDisplay();
+            loadTodayAttendance();
+        });
+
+        document.getElementById('rekapMonth').addEventListener('change', generateRekap);
+        document.getElementById('rekapYear').addEventListener('change', generateRekap);
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97a4581d8648df83',t:'MTc1NzA2MDgxMi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
